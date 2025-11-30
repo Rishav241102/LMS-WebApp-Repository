@@ -391,7 +391,7 @@ export const dummyCourses = [
             {
                 "chapterId": "chapter2",
                 "chapterOrder": 2,
-                "chapterTitle": "Basic Security Practices",
+                "chapterTitle": "Basic Securitya Practices",
                 "chapterContent": [
                     {
                         "lectureId": "lecture3",
