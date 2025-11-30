@@ -1,15 +1,19 @@
 import React, { useState } from "react";
+import { useAuth } from "@clerk/clerk-react";
 
 const AddCourse = () => {
+  const { getToken } = useAuth();
+
   const [course, setCourse] = useState({
-    title: "",
-    description: "",
+    courseTitle: "",
+    courseDescription: "",
     category: "",
-    price: "",
+    coursePrice: "",
     discount: 0,
-    thumbnail: "",
-    chapters: [],
+    courseThumbnail: "",
+    courseContent: [],
   });
+  const [imageFile, setImageFile] = useState(null);
 
   const [chapterTitle, setChapterTitle] = useState("");
   const [lectureTitle, setLectureTitle] = useState("");
@@ -17,13 +21,17 @@ const AddCourse = () => {
 
   // handle input change
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setCourse({ ...course, [name]: value });
+    const { name, value, type, files } = e.target;
+    if (type === "file") {
+      setImageFile(files[0]);
+    } else {
+      setCourse({ ...course, [name]: value });
+    }
   };
 
   // Calculate final price after discount
-  const finalPrice = course.price
-    ? (course.price - (course.price * course.discount) / 100).toFixed(2)
+  const finalPrice = course.coursePrice
+    ? (course.coursePrice - (course.coursePrice * course.discount) / 100).toFixed(2)
     : 0;
 
   // add chapter
@@ -31,7 +39,15 @@ const AddCourse = () => {
     if (!chapterTitle.trim()) return;
     setCourse({
       ...course,
-      chapters: [...course.chapters, { title: chapterTitle, lectures: [] }],
+      courseContent: [
+        ...course.courseContent,
+        {
+          chapterId: `c${course.courseContent.length + 1}`,
+          chapterOrder: course.courseContent.length + 1,
+          chapterTitle: chapterTitle,
+          chapterContent: [],
+        },
+      ],
     });
     setChapterTitle("");
   };
@@ -39,21 +55,69 @@ const AddCourse = () => {
   // add lecture to chapter
   const addLecture = (chapterIndex) => {
     if (!lectureTitle.trim() || !lectureUrl.trim()) return;
-    const updatedChapters = [...course.chapters];
-    updatedChapters[chapterIndex].lectures.push({
-      title: lectureTitle,
-      url: lectureUrl,
+    const updatedChapters = [...course.courseContent];
+    updatedChapters[chapterIndex].chapterContent.push({
+      lectureId: `l${updatedChapters[chapterIndex].chapterContent.length + 1}`,
+      lectureOrder: updatedChapters[chapterIndex].chapterContent.length + 1,
+      lectureTitle: lectureTitle,
+      lectureUrl: lectureUrl,
+      lectureDuration: 10, // default, you can add input for this
+      isPreview: false, // default, you can add input for this
     });
-    setCourse({ ...course, chapters: updatedChapters });
+    setCourse({ ...course, courseContent: updatedChapters });
     setLectureTitle("");
     setLectureUrl("");
   };
 
-  const handleSubmit = (e) => {
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("📌 Course Data:", course);
-    alert("Course submitted successfully!");
-    // API call to save in DB would go here
+    try {
+      const token = await getToken();
+      const formData = new FormData();
+      const courseData = {
+        courseTitle: course.courseTitle,
+        courseDescription: course.courseDescription,
+        courseThumbnail: course.courseThumbnail,
+        coursePrice: course.coursePrice,
+        discount: course.discount,
+        category: course.category,
+        courseContent: course.courseContent,
+      };
+      formData.append("courseData", JSON.stringify(courseData));
+      if (imageFile) {
+        formData.append("image", imageFile);
+      }
+  const response = await fetch("http://localhost:5000/api/educator/add-course", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      if (!response.ok) {
+        let errorMsg = response.statusText;
+        try {
+          const text = await response.text();
+          errorMsg = text ? text : response.statusText;
+        } catch {}
+        alert("Failed to add course: " + errorMsg);
+        return;
+      }
+      alert("Course submitted successfully!");
+      setCourse({
+        courseTitle: "",
+        courseDescription: "",
+        category: "",
+        coursePrice: "",
+        discount: 0,
+        courseThumbnail: "",
+        courseContent: [],
+      });
+      setImageFile(null);
+    } catch (err) {
+      alert("Error submitting course: " + err.message);
+    }
   };
 
   return (
@@ -67,8 +131,8 @@ const AddCourse = () => {
             <label className="block text-gray-600 font-medium">Course Title</label>
             <input
               type="text"
-              name="title"
-              value={course.title}
+              name="courseTitle"
+              value={course.courseTitle}
               onChange={handleChange}
               className="w-full mt-1 p-2 border rounded-lg focus:ring focus:ring-indigo-300"
               required
@@ -79,8 +143,8 @@ const AddCourse = () => {
           <div>
             <label className="block text-gray-600 font-medium">Description</label>
             <textarea
-              name="description"
-              value={course.description}
+              name="courseDescription"
+              value={course.courseDescription}
               onChange={handleChange}
               rows="4"
               className="w-full mt-1 p-2 border rounded-lg focus:ring focus:ring-indigo-300"
@@ -105,8 +169,8 @@ const AddCourse = () => {
               <label className="block text-gray-600 font-medium">Price ($)</label>
               <input
                 type="number"
-                name="price"
-                value={course.price}
+                name="coursePrice"
+                value={course.coursePrice}
                 onChange={handleChange}
                 className="w-full mt-1 p-2 border rounded-lg focus:ring focus:ring-indigo-300"
                 required
@@ -132,13 +196,24 @@ const AddCourse = () => {
             {finalPrice > 0 ? `₹${finalPrice}` : "Enter price"}
           </div>
 
-          {/* Thumbnail */}
+          {/* Thumbnail URL */}
           <div>
             <label className="block text-gray-600 font-medium">Thumbnail URL</label>
             <input
               type="text"
-              name="thumbnail"
-              value={course.thumbnail}
+              name="courseThumbnail"
+              value={course.courseThumbnail}
+              onChange={handleChange}
+              className="w-full mt-1 p-2 border rounded-lg focus:ring focus:ring-indigo-300"
+            />
+          </div>
+          {/* Image File */}
+          <div>
+            <label className="block text-gray-600 font-medium">Course Image (optional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              name="image"
               onChange={handleChange}
               className="w-full mt-1 p-2 border rounded-lg focus:ring focus:ring-indigo-300"
             />
@@ -166,12 +241,12 @@ const AddCourse = () => {
 
             {/* Show chapters */}
             <div className="mt-4 space-y-4">
-              {course.chapters.map((chapter, index) => (
+              {course.courseContent.map((chapter, index) => (
                 <div key={index} className="border rounded-lg p-3">
-                  <h3 className="font-semibold text-gray-700">{chapter.title}</h3>
+                  <h3 className="font-semibold text-gray-700">{chapter.chapterTitle}</h3>
                   <ul className="list-disc ml-6 text-sm text-gray-600">
-                    {chapter.lectures.map((lec, i) => (
-                      <li key={i}>{lec.title}</li>
+                    {chapter.chapterContent.map((lec, i) => (
+                      <li key={i}>{lec.lectureTitle}</li>
                     ))}
                   </ul>
 

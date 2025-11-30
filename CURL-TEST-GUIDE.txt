@@ -1,0 +1,77 @@
+TESTING CLERK AUTHENTICATION - CURL GUIDE
+==========================================
+
+STEP 1: Get Your JWT Token
+==========================
+1. Open http://localhost:5173 in your browser
+2. Sign In or Sign Up with Clerk
+3. Open Browser DevTools (Press F12)
+4. Go to Console tab
+5. Paste and run: (await window.Clerk.getToken()).jwt
+6. Copy the entire token output
+
+STEP 2: Test Without Token (Should Fail)
+=========================================
+curl -X GET http://localhost:5000/debug/auth
+
+Expected Response:
+{"userId":null,"message":"Not authenticated"}
+
+
+STEP 3: Test With Token (Should Work)
+======================================
+Replace YOUR_TOKEN_HERE with your actual token from STEP 1:
+
+curl -X GET http://localhost:5000/debug/auth ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+Expected Response:
+{"userId":"user_xxxxx","message":"Authenticated"}
+
+
+STEP 4: Test Update Role Endpoint
+==================================
+curl -X GET http://localhost:5000/api/educator/update-role ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+Expected Response:
+{"success":true,"message":"You can publish a course now"}
+
+
+STEP 5: Test Add Course Endpoint (POST)
+========================================
+curl -X POST http://localhost:5000/api/educator/add-course ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"courseData\":\"{}\"}"
+
+
+USING IN POSTMAN
+================
+1. Create a new Request (GET or POST)
+2. URL: http://localhost:5000/debug/auth
+3. Go to "Headers" tab
+4. Add:
+   Key: Authorization
+   Value: Bearer YOUR_TOKEN_HERE
+5. Click "Send"
+
+
+TROUBLESHOOTING
+===============
+
+Error: "Unauthorized - Please login"
+- The Authorization header is missing or malformed
+- Make sure you include: Authorization: Bearer TOKEN_HERE
+
+Error: "Unauthorized Access - Only educators can access this"
+- The user role is not set to educator
+- First call: GET /api/educator/update-role
+
+Error: "A valid resource ID is required"
+- No token is being sent at all
+- Check if Authorization header is present
+
+Token Expired
+- If token is old, get a new one from the frontend console
+- Clerk tokens typically expire after some time
